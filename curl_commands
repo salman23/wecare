@@ -1,0 +1,3 @@
+{"name" : "abc"}
+
+curl --request GET -H "Content-Type: application/json" --data '{"name": "test"}' http://127.0.0.1:5000/reg_voluntere/

@@ -1,0 +1,16 @@
+installation:
+created a virtual environment for the installation
+
+install flask
+$ pip install Flask
+
+install some extension of flask framework
+
+for building restfulapi
+$ pip install flask-restful
+
+for mongodb
+$ pip install flask-pymongo
+
+install Flask-api
+pip install Flask-API
