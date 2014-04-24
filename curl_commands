@@ -1,3 +1,5 @@
 {"name" : "abc"}
 
-curl --request GET -H "Content-Type: application/json" --data '{"name": "test"}' http://127.0.0.1:5000/reg_voluntere/
+curl --request POST -H "Content-Type: application/json" --data '{"name": "salman wahed", "email" : "salman2312@gmail.com", "phone" : "01717337516", "university": "SUST", "organization": "KIN", "district": "Sylhet"}' http://192.168.1.113:5000/voluntere/
+
+http://192.168.1.113:5000/voluntere/

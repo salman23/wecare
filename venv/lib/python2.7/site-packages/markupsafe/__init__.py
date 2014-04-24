@@ -9,8 +9,9 @@
     :license: BSD, see LICENSE for more details.
 """
 import re
+import string
 from markupsafe._compat import text_type, string_types, int_types, \
-     unichr, PY2
+     unichr, iteritems, PY2
 
 
 __all__ = ['Markup', 'soft_unicode', 'escape', 'escape_silent']
@@ -164,11 +165,11 @@ class Markup(text_type):
             return cls(rv)
         return rv
 
-    def make_wrapper(name):
+    def make_simple_escaping_wrapper(name):
         orig = getattr(text_type, name)
         def func(self, *args, **kwargs):
             args = _escape_argspec(list(args), enumerate(args), self.escape)
-            #_escape_argspec(kwargs, kwargs.iteritems(), None)
+            _escape_argspec(kwargs, iteritems(kwargs), self.escape)
             return self.__class__(orig(self, *args, **kwargs))
         func.__name__ = orig.__name__
         func.__doc__ = orig.__doc__
@@ -178,7 +179,7 @@ class Markup(text_type):
                   'title', 'lower', 'upper', 'replace', 'ljust', \
                   'rjust', 'lstrip', 'rstrip', 'center', 'strip', \
                   'translate', 'expandtabs', 'swapcase', 'zfill':
-        locals()[method] = make_wrapper(method)
+        locals()[method] = make_simple_escaping_wrapper(method)
 
     # new in python 2.5
     if hasattr(text_type, 'partition'):
@@ -191,13 +192,42 @@ class Markup(text_type):
 
     # new in python 2.6
     if hasattr(text_type, 'format'):
-        format = make_wrapper('format')
+        def format(*args, **kwargs):
+            self, args = args[0], args[1:]
+            formatter = EscapeFormatter(self.escape)
+            return self.__class__(formatter.format(self, *args, **kwargs))
+
+        def __html_format__(self, format_spec):
+            if format_spec:
+                raise ValueError('Unsupported format specification '
+                                 'for Markup.')
+            return self
 
     # not in python 3
     if hasattr(text_type, '__getslice__'):
-        __getslice__ = make_wrapper('__getslice__')
+        __getslice__ = make_simple_escaping_wrapper('__getslice__')
 
-    del method, make_wrapper
+    del method, make_simple_escaping_wrapper
+
+
+if hasattr(text_type, 'format'):
+    class EscapeFormatter(string.Formatter):
+
+        def __init__(self, escape):
+            self.escape = escape
+
+        def format_field(self, value, format_spec):
+            if hasattr(value, '__html_format__'):
+                rv = value.__html_format__(format_spec)
+            elif hasattr(value, '__html__'):
+                if format_spec:
+                    raise ValueError('No format specification allowed '
+                                     'when formatting an object with '
+                                     'its __html__ method.')
+                rv = value.__html__()
+            else:
+                rv = string.Formatter.format_field(self, value, format_spec)
+            return text_type(self.escape(rv))
 
 
 def _escape_argspec(obj, iterable, escape):
