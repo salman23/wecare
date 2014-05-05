@@ -4,111 +4,211 @@ from flask.ext.pymongo import PyMongo
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 import ast
+import uuid
+import string
+from bson.objectid import ObjectId
+from datetime import datetime
 
-app = FlaskAPI(__name__)
+app = Flask(__name__)
 app.config['MONGO_DBNAME'] = 'wecaredb'
 mongo = PyMongo(app, config_prefix='MONGO')
 
 
-@app.route("/voluntere/", methods=['GET', 'POST', 'DELETE', 'PUT'])
-def voluntere():
+def make_login_response(message, session_token):
+    response_message = {'status': 0, 'message': message, 'session_token': session_token}
+    return response_message
+
+
+def make_error_response(error_code, message, debug):
+    response_message = {'status': error_code, 'message': message, 'debug': debug}
+    return response_message
+
+
+def make_user_response(status, message):
+    response_message = {'status': status, 'message': message}
+    return response_message
+
+
+def authenticate(session_token):
+    cursor = mongo.db.voluntere.find({"session_token": session_token})
+    if cursor.count() != 1:
+        return False
+    else:
+        for data in cursor:
+            user_id = data.get("_id")
+        return user_id
+
+def check_null(data):
+    if data:
+        return data
+    else:
+        return ""
+
+
+@app.route("/reg-voluntere/<string:email>/<string:password>/<string:name>/<string:phone>/<string:organization>/<string:district>/", methods=['GET'])
+def reg_voluntere(email, password, name, phone, organization, district):
     """
     voluntere CRUD api
     """
-    if request.method == 'POST':    #add voluntere
-        voluntere_doc = request.data
-        v_doc = dict(voluntere_doc)
-        data = v_doc.get('jsonData')
-        mongodata = ast.literal_eval(data[0])
-        oid = mongo.db.voluntere.insert(mongodata)
-        voluntere_id =  str(oid)
-        response_message = {"id": voluntere_id}
-        print response_message
-        return str(response_message)
-    
-    elif request.method == 'GET':
-        raw_data = request.data
-        print raw_data
-        v_doc = dict(raw_data)
-        data = v_doc.get('jsonData')
-        jdata = ast.literal_eval(data[0])
-        try:
-            email = jdata.get("email")
-        except (TypeError, KeyError) as e:
-            email = None
-        try:
-            name = jdata.get("name")
-        except (TypeError, KeyError) as e:
-            name = None
-        try:
-            vol_id = ObjectId(jdata.get("id"))
-        except (TypeError, KeyError) as e:
-            name = None
+    if mongo.db.user.find_one({'email': email}):
+        response_message = make_error_response(1, "user already exists", "email exists")
+    else:
+        if phone == -2:
+            phone=""
+        if organization == -2:
+            organization=""
+        if district==-2:
+            district=""
+        voluntere_doc = {
+            'email': email,
+            'password': password,
+            'name': name,
+            'phone': phone,
+            'organization': organization,
+            'district': district,
+        }
+        oid = mongo.db.voluntere.insert(voluntere_doc)
+        response_message = make_user_response(0, "Registered successfully")
+    return jsonify(response_message)
 
-        if vol_id:
-            id_query = mongo.db.voluntere.find({"_id": vol_id})
-            for data in id_query:
-                vol_id = str(data.get('_id'))
-                del(data['_id'])
-                data['vid'] = vol_id
-                return jsonify(data)
-        if name:
-            name_query = mongo.db.voluntere.find({"name": name})
-            for data in name_query:
-                vid = str(data.get('_id'))
-                del(data['_id'])
-                data['vid'] = vid
-                return jsonify(data)
+
+@app.route("/product/<string:session_token>/<string:product_catagory>/<string:product_location>/<string:product_description>/", methods=['GET'])
+@app.route("/product/<string:session_token>/<string:product_catagory>/<string:product_location>/", methods=['GET'])
+def product(session_token, product_catagory, product_location, product_description=None):
+    voluntere_id = authenticate(session_token)
+    if not product_description:
+        product_description=""
+    product_doc = {
+        'product_catagory': product_catagory,
+        'product_location': product_location,
+        'collected_by': voluntere_id,
+        'product_description': product_description,
+    }
+    pid = mongo.db.product.insert(product_doc)
+    response_message = make_user_response(0, "product added successsfully")
+    return jsonify(response_message)
+
+
+#login of a vlountere
+@app.route("/voluntere-login/<string:email>/<string:password>/", methods=['GET'])
+def login(email, password):
+    cursor = mongo.db.voluntere.find({'email': email}, {'password': 1, '_id': 1})
+    if cursor.count()<1:
+        response_message = make_user_response(-1, "please register first")
+    for data in cursor:
+        v_id = data['_id']
+        v_passw = data['password']
+        if password == v_passw:
+            session_token = str(uuid.uuid4())
+            mongo.db.voluntere.update({"email": email},{"$set": {"session_token": session_token}})
+            response_message = make_login_response("successful login", session_token)
         else:
-            email_query = mongo.db.voluntere.find({"email" : email})
-            for data in email_query:
-                vid = str(data.get('_id'))
-                del(data['_id'])
-                data['vid'] = vid
-                return jsonify(data)
+            response_message = make_error_response(2, "password error", "user not logged in")
+    return jsonify(response_message)
 
-
-@app.route("/product/", methods=['GET', 'POST', 'DELETE', 'PUT'])
-def product():
-    """
-    product CRUD api
-    """
-    if request.method == 'POST':
-        product_doc = request.data
-        pid = mongo.db.product.insert(product_doc)
-        return str(pid), status.HTTP_201_CREATED
-    if request.method == 'GET':
-        jdata = request.data
-        results = []
-        if jdata.has_key('pid'):
-            pid = ObjectId(jdata.get('pid'))
-            query = mongo.db.product.find({'_id': pid})
-        elif jdata.has_key('organization'):
-            org = jdata.get('organization')
-            query = mongo.db.product.find({'organization': org})
-
-    
-@app.route("/people/", methods=['GET', 'POST', 'DELETE', 'PUT'])
-def people():
-    """
-    people CRUD api
-    """
-    if request.method == 'POST':
-        people_doc = request.data
-        pplid = mongo.db.product.insert(people_doc)
-        return str(pplid), status.HTTP_201_CREATED
-
-
-
-@app.route("/voluntere-login/", methods=['GET'])
-def login():
-    pass
 
 
 @app.route("/", methods=['GET', 'POST'])
 def index():
     return "wecare for people"
     pass
+
+
+#this will be used to see all available products
+@app.route("/product-detail/<string:session_token>/", methods=['GET'])
+def product_detail(session_token):
+    user_id = authenticate(session_token)
+    
+    if user_id:
+        query = mongo.db.product.find()
+        jsondata={}
+        productlist = []
+        product = {}
+        for data in query:
+            product['product_catagory'] = data.get("product_catagory")
+            product["product_description"]  = data.get("product_description")
+            product["p_id"] = str(data.get("_id"))
+            product["collected_by"] = str(data.get("collected_by"))
+            product["status"] = data.get("status")
+            if product["status"] == "donated":
+                continue
+            elif not product["status"]:
+                product["status"] = "available"
+                productlist.append(product)
+                product = {} 
+            else:
+                productlist.append(product)
+                product = {}
+        jsondata["data"] = productlist
+        response_message = jsondata
+    else:
+        response_message = make_error_response(2, "user not logged in", "please login first")
+    return jsonify(response_message)
+
+
+
+@app.route("/activity-recent/<string:session_token>/", methods=['GET'])
+def activity_recent(session_token):
+    user_id = authenticate(session_token)
+    if user_id:
+        query = mongo.db.activity.find()
+        jsondata={}
+        activitylist = []
+        acitvity = {}
+        for data in query:
+            flag = False
+            for item in activitylist:
+                if item.get("product_id")==str(data.get('product_id')) :
+                    flag = True
+            if not flag:
+                acitvity['voluntere_name'] = data.get("voluntere_name")
+                acitvity["recipient_district"]  = data.get("recipient_district")
+                acitvity["product_id"] = str(data.get("_id"))
+                acitvity["product_catagory"] = data.get("product_catagory")
+                acitvity["recipient"] = data.get("recipient")
+                acitvity["product_location"] = data.get("product_location")
+                activitylist.append(acitvity)
+                acitvity={}
+            else:
+                continue
+        jsondata["data"] = activitylist
+        response_message = jsondata
+    else:
+        response_message = make_error_response(3, "login first !!", "session_expired")
+    
+    return jsonify(response_message)
+
+
+
+@app.route("/donate-product/<string:session_token>/<string:product_id>/<string:recipient>/", methods=['GET'])
+@app.route("/donate-product/<string:session_token>/<string:product_id>/<string:recipient>/<string:recipient_district>/", methods=['GET'])
+def donate(session_token, product_id, recipient, recipient_district=None):
+    user_id = authenticate(session_token)
+    if user_id:
+        v_id = ObjectId(user_id)
+        p_id = ObjectId(product_id)
+        if not recipient_district:
+            recipient_district=""
+        voluntere_info = mongo.db.voluntere.find_one({"_id": v_id})
+        product_info = mongo.db.product.find_one({"_id": p_id})
+        activity_doc = {
+            "voluntere_name": voluntere_info.get("name"),
+            "product_id": p_id,
+            "voluntere_id": v_id,
+            "recipient":  recipient,
+            "recipient_district": recipient_district,
+            "product_description": product_info.get("product_description"),
+            "product_location": product_info.get("product_location"),
+            "product_catagory": product_info.get("product_catagory"),
+        }
+        activity_id = mongo.db.activity.insert(activity_doc)
+        mongo.db.product.update({"_id": p_id},{"$set": {"status": "donated"}})
+        response_message = make_user_response(0, "donated successfully")
+    else:
+        response_message = make_error_response(3, "login first !!", "session_expired")
+    
+    return str(response_message)
+
 
 
 if __name__ == "__main__":
