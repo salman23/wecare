@@ -1,14 +1,14 @@
 {"name" : "abc"}
 
-curl --request POST -H "Content-Type: application/json" --data '{"name": "salman wahed", "email" : "salman2312@gmail.com", "phone" : "01717337516", "university": "SUST", "organization": "KIN", "district": "Sylhet", "passowrd": "123"}' http://192.168.1.113:5000/voluntere/
+curl --request POST -H "Content-Type: application/json" --data '{"name": "salman wahed", "email" : "salman@example.com", "phone" : "01XXXXXXXXX", "university": "University", "organization": "ORG", "district": "DHAKA", "passowrd": "XXYY"}' http://192.168.1.113:5000/voluntere/
 
 http://192.168.1.105:5000/voluntere/
 
-db.voluntere.insert({"name": "salman wahed", "email" : "salman2312@gmail.com", "phone" : "01717337516", "university": "SUST", "organization": "KIN", "district": "Sylhet", "passowrd": "123"})
+db.voluntere.insert({"name": "salman wahed", "email" : "salman@example.com", "phone" : "01XXXXXXXXX", "university": "University", "organization": "ORG", "district": "DHAKA", "passowrd": "XXYY"})
 
 
 login:
-http://192.168.1.105:5000/voluntere-login/salman2312@gmail.com/123/
+http://192.168.1.105:5000/voluntere-login/salman@example.com/123/
 
 product-detail:
 http://192.168.1.105:5000/product-detail/01ebdc27-98b6-4794-8f8a-94c091cf4938/
